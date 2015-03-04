@@ -95,6 +95,8 @@ template < class Hardware,
          int MAX_PUBLISHERS = 25,
          int INPUT_SIZE = 512,
          int OUTPUT_SIZE = 512 >
+
+
 class NodeHandle_ : public NodeHandleBase_
 {
   protected:
@@ -108,6 +110,7 @@ class NodeHandle_ : public NodeHandleBase_
 
     unsigned char message_in[INPUT_SIZE];
     unsigned char message_out[OUTPUT_SIZE];
+
 
     Publisher * publishers[MAX_PUBLISHERS];
     Subscriber_ * subscribers[MAX_SUBSCRIBERS];
@@ -205,15 +208,12 @@ class NodeHandle_ : public NodeHandleBase_
         uint8_t rcode = adk_.RcvData(&len, msg);
         int i = 0;
         for (i = 0; i < len; i++) {
-          Serial.print(F("\r\nmsg: "));
-          Serial.print(i);
-          Serial.print(F(":"));
-          Serial.print(msg[i], HEX);
           int data = msg[i];
 
           //int data = hardware_.read();
           if ( data < 0 )
             break;
+	  Serial.print(data, HEX);
           checksum_ += data;
           if ( mode_ == MODE_MESSAGE ) {      /* message data being recieved */
             message_in[index_++] = data;
@@ -262,12 +262,9 @@ class NodeHandle_ : public NodeHandleBase_
               mode_ = MODE_MSG_CHECKSUM;
           } else if ( mode_ == MODE_MSG_CHECKSUM ) { /* do checksum */
             mode_ = MODE_FIRST_FF;
-            if ( (checksum_ % 256) == 255) {
+            if ( (checksum_ % 256) == 255) {		
               if (topic_ == TopicInfo::ID_PUBLISHER) {
-                requestSyncTime();
                 negotiateTopics();
-                last_sync_time = c_time;
-                last_sync_receive_time = c_time;
                 return -1;
               } else if (topic_ == TopicInfo::ID_TIME) {
                 syncTime(message_in);
@@ -437,12 +434,11 @@ class NodeHandle_ : public NodeHandleBase_
         return 0;
       }
 
-
       /* serialize message */
       unsigned int l = msg->serialize(message_out + 7);
 
-      Serial.print("\n\Length ");
-      Serial.print(l);
+//      Serial.print("\n\Length ");
+//      Serial.print(l);
 
       /* setup the header */
       message_out[0] = 0xff;
@@ -454,18 +450,20 @@ class NodeHandle_ : public NodeHandleBase_
 //      Serial.print(message_out[1], HEX);
 
       message_out[2] = (unsigned char) ((unsigned int)l & 255);
-      Serial.print("\n\message_out[2] ");
-      Serial.print(message_out[2], HEX);
+//      Serial.print("\n\message_out[2] ");
+//      Serial.print(message_out[2], HEX);
 
       message_out[3] = (unsigned char) ((unsigned int)l >> 8);
-      Serial.print("\n\message_out[3] ");
-      Serial.print(message_out[3], HEX);
+//      Serial.print("\n\message_out[3] ");
+//      Serial.print(message_out[3], HEX);
 
       message_out[4] = 255 - ((message_out[2] + message_out[3]) % 256);
 //      Serial.print("\n\message_out[4] ");
 //      Serial.print(message_out[4], HEX);
 
       message_out[5] = (unsigned char) ((int)id & 255);
+//      Serial.print("\n\message id] ");
+//      Serial.print(id);
 //      Serial.print("\n\message_out[5] ");
 //      Serial.print(message_out[5], HEX);
 
