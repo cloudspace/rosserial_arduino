@@ -203,9 +203,10 @@ class NodeHandle_ : public NodeHandleBase_
       /* while available buffer, read data */
       while ( true )
       {
-        uint8_t msg[512];
+        uint8_t msg[256];
         uint16_t len = sizeof(msg);
         uint8_t rcode = adk_.RcvData(&len, msg);
+
         int i = 0;
         for (i = 0; i < len; i++) {
           int data = msg[i];
@@ -213,7 +214,7 @@ class NodeHandle_ : public NodeHandleBase_
           //int data = hardware_.read();
           if ( data < 0 )
             break;
-	  Serial.print(data, HEX);
+
           checksum_ += data;
           if ( mode_ == MODE_MESSAGE ) {      /* message data being recieved */
             message_in[index_++] = data;
@@ -235,8 +236,9 @@ class NodeHandle_ : public NodeHandleBase_
               mode_++;
             } else {
               mode_ = MODE_FIRST_FF;
-              if (configured_ == false)
+              if (configured_ == false) {
                 requestSyncTime(); 	/* send a msg back showing our protocol version */
+              }
             }
           } else if ( mode_ == MODE_SIZE_L ) { /* bottom half of message size */
             bytes_ = data;
@@ -247,14 +249,20 @@ class NodeHandle_ : public NodeHandleBase_
             bytes_ += data << 8;
             mode_++;
           } else if ( mode_ == MODE_SIZE_CHECKSUM ) {
-            if ( (checksum_ % 256) == 255)
+            if ( (checksum_ % 256) == 255) {
               mode_++;
-            else
-              mode_ = MODE_FIRST_FF;          /* Abandon the frame if the msg len is wrong */
-          } else if ( mode_ == MODE_TOPIC_L ) { /* bottom half of topic id */
+            } else {
+      	      /* Abandon the frame if the msg len is wrong */
+              mode_ = MODE_FIRST_FF;    
+              Serial.print("\n\size check failed ");
+	      Serial.print("\n\size ");
+       	      Serial.print(checksum_, HEX);	     
+	    }
+          } else if ( mode_ == MODE_TOPIC_L ) { /* bottom half of topic id */       	      
             topic_ = data;
             mode_++;
-            checksum_ = data;               /* first byte included in checksum */
+            checksum_ = data;  
+          /* first byte included in checksum */
           } else if ( mode_ == MODE_TOPIC_H ) { /* top half of topic id */
             topic_ += data << 8;
             mode_ = MODE_MESSAGE;
@@ -262,21 +270,30 @@ class NodeHandle_ : public NodeHandleBase_
               mode_ = MODE_MSG_CHECKSUM;
           } else if ( mode_ == MODE_MSG_CHECKSUM ) { /* do checksum */
             mode_ = MODE_FIRST_FF;
-            if ( (checksum_ % 256) == 255) {		
+            if ( (checksum_ % 256) == 255) {	
               if (topic_ == TopicInfo::ID_PUBLISHER) {
+       	      	Serial.print("\n\handle pub ");
                 negotiateTopics();
                 return -1;
               } else if (topic_ == TopicInfo::ID_TIME) {
+      	      	Serial.print("\n\handle time ");
                 syncTime(message_in);
               } else if (topic_ == TopicInfo::ID_PARAMETER_REQUEST) {
+      	      	Serial.print("\n\handle param ");
                 req_param_resp.deserialize(message_in);
                 param_recieved = true;
               } else if (topic_ == TopicInfo::ID_TX_STOP) {
+      	      	Serial.print("\n\handle stop ");
                 configured_ = false;
               } else {
+      	      	Serial.print("\n\handle subscriber ");
+      	      	Serial.print(topic_);
+
                 if (subscribers[topic_ - 100])
                   subscribers[topic_ - 100]->callback( message_in );
               }
+            } else {
+              Serial.print("\n\msg check failed ");
             }
           }
         }
@@ -360,8 +377,10 @@ class NodeHandle_ : public NodeHandleBase_
     bool subscribe(Subscriber< MsgT> & s) {
       for (int i = 0; i < MAX_SUBSCRIBERS; i++) {
         if (subscribers[i] == 0) { // empty slot
-          subscribers[i] = (Subscriber_*) &s;
           s.id_ = i + 100;
+          subscribers[i] = (Subscriber_*) &s;
+          Serial.print("\n\Sub id ");
+          Serial.print(s.id_);
           return true;
         }
       }
